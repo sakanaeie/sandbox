@@ -1,6 +1,6 @@
 <?php
 
-class A
+class Apple
 {
 	public function hoge()
 	{
