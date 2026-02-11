@@ -9,7 +9,6 @@
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* カスタムモーダルのスタイル */
         #confirm-modal {
             display: none;
             position: fixed;
@@ -27,7 +26,7 @@
         <!-- Header -->
         <header class="text-center">
             <h1 class="text-3xl font-bold text-gray-900">Task Timer</h1>
-            <p class="text-gray-500 text-sm mt-2">記録はURLに保存されるため、リロードしても消えません</p>
+            <p class="text-gray-500 text-sm mt-2">データはURLの末尾にCSV形式で効率的に保存されます</p>
         </header>
 
         <!-- Timer Section -->
@@ -66,9 +65,7 @@
                             <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">経過時間</th>
                         </tr>
                     </thead>
-                    <tbody id="record-list" class="divide-y divide-gray-100">
-                        <!-- Records will be injected here -->
-                    </tbody>
+                    <tbody id="record-list" class="divide-y divide-gray-100"></tbody>
                 </table>
             </div>
             <div id="empty-state" class="p-12 text-center text-gray-400">
@@ -91,7 +88,7 @@
     <div id="confirm-modal">
         <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full mx-4">
             <h3 class="text-lg font-bold mb-2">記録のリセット</h3>
-            <p class="text-gray-600 mb-6 text-sm">すべてのタイマー記録を消去します。この操作は取り消せません。よろしいですか？</p>
+            <p class="text-gray-600 mb-6 text-sm">すべてのタイマー記録を消去します。この操作は取り消せません。</p>
             <div class="flex gap-3">
                 <button id="confirm-cancel" class="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium">キャンセル</button>
                 <button id="confirm-ok" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">リセットする</button>
@@ -101,12 +98,11 @@
 
     <script>
         // State Management
-        let records = [];
+        let records = []; // Each element: {start: timestamp, end: timestamp}
         let isRunning = false;
         let startTime = null;
         let timerInterval = null;
 
-        // DOM Elements
         const display = document.getElementById('display');
         const mainBtn = document.getElementById('main-btn');
         const btnIcon = document.getElementById('btn-icon');
@@ -116,18 +112,15 @@
         const recordCountDisplay = document.getElementById('record-count');
         const emptyState = document.getElementById('empty-state');
         const resetBtn = document.getElementById('reset-btn');
-        
         const modal = document.getElementById('confirm-modal');
         const confirmOk = document.getElementById('confirm-ok');
         const confirmCancel = document.getElementById('confirm-cancel');
 
-        // Initialization
         window.addEventListener('load', () => {
             loadFromURL();
             renderTable();
         });
 
-        // Functions
         function formatTime(ms) {
             const s = Math.floor(ms / 1000);
             const hrs = Math.floor(s / 3600);
@@ -136,8 +129,8 @@
             return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         }
 
-        function formatDateTime(dateStr) {
-            const d = new Date(dateStr);
+        function formatDateTime(timestamp) {
+            const d = new Date(parseInt(timestamp));
             return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
         }
 
@@ -147,23 +140,31 @@
             display.textContent = formatTime(elapsed);
         }
 
+        /**
+         * Save records to URL hash as CSV string: start,end;start,end;...
+         */
         function saveToURL() {
             if (records.length === 0) {
-                window.location.hash = '';
+                // Clear hash without adding to history
+                history.replaceState(null, null, ' ');
                 return;
             }
-            // Base64 encode to keep URL relatively clean
-            const data = JSON.stringify(records);
-            const encoded = btoa(unescape(encodeURIComponent(data)));
-            window.location.hash = encoded;
+            const csv = records.map(r => `${r.start},${r.end}`).join(';');
+            location.hash = csv;
         }
 
+        /**
+         * Load records from URL hash
+         */
         function loadFromURL() {
-            const hash = window.location.hash.substring(1);
+            const hash = location.hash.substring(1);
             if (!hash) return;
             try {
-                const decoded = decodeURIComponent(escape(atob(hash)));
-                records = JSON.parse(decoded);
+                // Split by semicolon for records, then comma for start/end
+                records = hash.split(';').map(pair => {
+                    const [start, end] = pair.split(',');
+                    return { start: parseInt(start), end: parseInt(end) };
+                }).filter(r => !isNaN(r.start) && !isNaN(r.end));
             } catch (e) {
                 console.error("Failed to parse records from URL", e);
                 records = [];
@@ -178,9 +179,8 @@
                 emptyState.style.display = 'block';
             } else {
                 emptyState.style.display = 'none';
-                // 表示は新しい順にする
                 [...records].reverse().forEach(record => {
-                    const diff = new Date(record.end) - new Date(record.start);
+                    const diff = record.end - record.start;
                     totalMs += diff;
 
                     const row = document.createElement('tr');
@@ -198,10 +198,8 @@
             recordCountDisplay.textContent = records.length;
         }
 
-        // Event Listeners
         mainBtn.addEventListener('click', () => {
             if (!isRunning) {
-                // Start
                 isRunning = true;
                 startTime = Date.now();
                 mainBtn.classList.replace('bg-blue-600', 'bg-red-600');
@@ -210,21 +208,14 @@
                 btnIcon.textContent = '■';
                 timerInterval = setInterval(updateDisplay, 1000);
             } else {
-                // Stop
                 isRunning = false;
                 const endTime = Date.now();
                 clearInterval(timerInterval);
                 
-                const newRecord = {
-                    start: new Date(startTime).toISOString(),
-                    end: new Date(endTime).toISOString()
-                };
-                
-                records.push(newRecord);
+                records.push({ start: startTime, end: endTime });
                 saveToURL();
                 renderTable();
                 
-                // Reset UI
                 startTime = null;
                 display.textContent = '00:00:00';
                 mainBtn.classList.replace('bg-red-600', 'bg-blue-600');
@@ -248,7 +239,6 @@
             renderTable();
             modal.style.display = 'none';
             
-            // If running, stop it
             if (isRunning) {
                 clearInterval(timerInterval);
                 isRunning = false;
@@ -259,7 +249,6 @@
                 btnIcon.textContent = '▶';
             }
         });
-
     </script>
 </body>
 </html>
