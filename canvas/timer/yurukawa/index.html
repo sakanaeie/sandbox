@@ -12,7 +12,13 @@
             background-color: #fef9ef;
             color: #4a4a4a;
             margin: 0;
-            padding-bottom: 80px; /* Footer space */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-container {
+            flex: 1;
+            padding-bottom: 3rem; /* pb-12 equivalent */
         }
         .card {
             background: white;
@@ -61,21 +67,42 @@
             width: 60px;
             text-align: center;
         }
+        
+        /* Table Visual Improvements */
         table {
             border-collapse: separate;
-            border-spacing: 0 8px;
+            border-spacing: 0;
+            width: 100%;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #f3f4f6;
         }
         th {
-            color: #888;
-            font-weight: normal;
-            padding-bottom: 8px;
+            background-color: #f9fafb;
+            color: #6b7280;
+            font-weight: 700;
+            padding: 12px 16px;
+            border-bottom: 2px solid #eee;
+            text-transform: uppercase;
+            font-size: 0.75rem;
         }
         tr td {
-            background: white;
-            padding: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s;
         }
-        tr td:first-child { border-radius: 12px 0 0 12px; }
-        tr td:last-child { border-radius: 0 12px 12px 0; }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        /* Zebra stripes */
+        tr:nth-child(even) td {
+            background-color: #fafafa;
+        }
+        /* Hover effect */
+        tr:hover td {
+            background-color: #fff1f2;
+        }
         
         .decoration-dot {
             width: 12px;
@@ -113,25 +140,23 @@
         input:checked + .slider { background-color: #ff92a4; }
         input:checked + .slider:before { transform: translateX(26px); }
 
-        /* Footer & Horse Animation */
+        /* Footer & Horse Animation - Changed to relative position */
         footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
+            margin-top: auto;
             width: 100%;
             height: 60px;
-            background-color: #d1fae5; /* Soft grass green (Tailwind emerald-100ish) */
+            background-color: #d1fae5;
             border-top: 4px solid #a7f3d0;
             overflow: hidden;
             display: flex;
             align-items: center;
-            z-index: 50;
+            position: relative;
         }
         .horse-track {
             position: absolute;
             white-space: nowrap;
             display: flex;
-            gap: 50px; /* Reduced gap from 100px to 50px */
+            gap: 50px;
             animation: horseRun 25s linear infinite;
         }
         @keyframes horseRun {
@@ -141,19 +166,20 @@
         .horse { font-size: 24px; }
         .footer-controls {
             position: absolute;
-            right: 20px;
+            right: 0;
             background-color: #d1fae5;
             padding: 0 15px;
             height: 100%;
             display: flex;
             align-items: center;
             border-left: 2px solid #a7f3d0;
+            z-index: 10;
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-0">
 
-    <div class="max-w-2xl mx-auto">
+    <div class="main-container p-4 md:p-8 max-w-2xl mx-auto w-full">
         <!-- Header -->
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-[#ff92a4]">🐑 ゆるかわタイマー 🐑</h1>
@@ -206,8 +232,8 @@
                 <span class="decoration-dot bg-[#a1c4fd]"></span>
                 これまでの記録
             </h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
+            <div class="overflow-x-auto rounded-xl">
+                <table class="text-sm text-left">
                     <thead>
                         <tr>
                             <th class="px-4">開始日時</th>
@@ -230,7 +256,7 @@
     </div>
 
     <!-- Alarm Modal -->
-    <div id="alarm-modal" class="hidden fixed inset-0 flex items-center justify-center bg-black/20 px-4">
+    <div id="alarm-modal" class="hidden fixed inset-0 flex items-center justify-center bg-black/20 px-4 z-[100]">
         <div class="alarm-popup p-8 rounded-[32px] text-center max-w-sm w-full shadow-2xl">
             <div class="text-4xl mb-4">🐑</div>
             <h2 class="text-2xl font-bold mb-4">時間になりました！</h2>
@@ -250,8 +276,8 @@
             <span class="horse">🐎</span>
         </div>
         <div class="footer-controls">
-            <button id="footer-anim-toggle" class="text-xs bg-white px-4 py-1.5 rounded-full border border-[#a7f3d0] shadow-sm font-bold hover:bg-gray-50">
-                お馬さんを止める
+            <button id="footer-anim-toggle" class="text-[10px] bg-white px-3 py-1 rounded-full border border-[#a7f3d0] shadow-sm font-bold hover:bg-gray-50 transition-colors">
+                馬を止める
             </button>
         </div>
     </footer>
@@ -357,7 +383,6 @@
             }
         }
 
-        // アラーム時間の再評価ロジック
         function checkAndResetAlarmFlag() {
             if (!startTime) return;
             const diffSec = Math.floor((Date.now() - startTime) / 1000);
@@ -365,13 +390,11 @@
                              (parseInt(alarmInputs.m.value) * 60) + 
                              parseInt(alarmInputs.s.value);
             
-            // 現在の経過時間よりも「未来」の時間に設定されたなら、鳴動フラグをリセットする
             if (alarmSec > diffSec) {
                 alarmFired = false;
             }
         }
 
-        // 設定が変更されたらフラグをチェックする
         [alarmInputs.h, alarmInputs.m, alarmInputs.s, alarmToggle].forEach(el => {
             el.addEventListener('change', checkAndResetAlarmFlag);
             el.addEventListener('input', checkAndResetAlarmFlag);
@@ -429,9 +452,9 @@
                 totalMs += diff;
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="px-4">${formatDate(r.start)}</td>
-                    <td class="px-4">${formatDate(r.end)}</td>
-                    <td class="px-4 text-right font-bold">${formatTime(diff)}</td>
+                    <td class="px-4 font-medium text-gray-500">${formatDate(r.start)}</td>
+                    <td class="px-4 font-medium text-gray-500">${formatDate(r.end)}</td>
+                    <td class="px-4 text-right font-bold text-gray-700">${formatTime(diff)}</td>
                 `;
                 recordList.appendChild(tr);
             });
@@ -472,10 +495,10 @@
         footerAnimToggle.addEventListener('click', () => {
             if (horseTrack.style.animationPlayState === 'paused') {
                 horseTrack.style.animationPlayState = 'running';
-                footerAnimToggle.textContent = 'お馬さんを止める';
+                footerAnimToggle.textContent = '馬を止める';
             } else {
                 horseTrack.style.animationPlayState = 'paused';
-                footerAnimToggle.textContent = 'お馬さんを走らせる';
+                footerAnimToggle.textContent = '馬を走らせる';
             }
         });
 
