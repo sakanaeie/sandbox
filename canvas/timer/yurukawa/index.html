@@ -11,6 +11,8 @@
             font-family: 'Zen Maru Gothic', sans-serif;
             background-color: #fef9ef;
             color: #4a4a4a;
+            margin: 0;
+            padding-bottom: 80px; /* Footer space */
         }
         .card {
             background: white;
@@ -82,6 +84,71 @@
             display: inline-block;
             margin-right: 4px;
         }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #ff92a4; }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        /* Footer & Horse Animation */
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: #d1fae5; /* Soft grass green (Tailwind emerald-100ish) */
+            border-top: 4px solid #a7f3d0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            z-index: 50;
+        }
+        .horse-track {
+            position: absolute;
+            white-space: nowrap;
+            display: flex;
+            gap: 50px; /* Reduced gap from 100px to 50px */
+            animation: horseRun 25s linear infinite;
+        }
+        @keyframes horseRun {
+            from { transform: translateX(100vw); }
+            to { transform: translateX(-500px); }
+        }
+        .horse { font-size: 24px; }
+        .footer-controls {
+            position: absolute;
+            right: 20px;
+            background-color: #d1fae5;
+            padding: 0 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            border-left: 2px solid #a7f3d0;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -105,16 +172,22 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <!-- Alarm Settings -->
             <div class="card p-6">
-                <h2 class="font-bold mb-4 flex items-center">
-                    <span class="decoration-dot bg-[#ffcb77]"></span>
-                    アラーム設定
-                </h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold flex items-center">
+                        <span class="decoration-dot bg-[#ffcb77]"></span>
+                        アラーム設定
+                    </h2>
+                    <label class="switch">
+                        <input type="checkbox" id="alarm-toggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
                 <div class="flex items-center gap-2 justify-center">
                     <input type="number" id="alarm-h" value="1" min="0" max="23"> <span class="text-xs">時</span>
                     <input type="number" id="alarm-m" value="0" min="0" max="59"> <span class="text-xs">分</span>
                     <input type="number" id="alarm-s" value="0" min="0" max="59"> <span class="text-xs">秒</span>
                 </div>
-                <p class="text-[10px] text-gray-400 mt-4 text-center">指定した時間になると優しくお知らせします</p>
+                <p class="text-[10px] text-gray-400 mt-4 text-center">トグルONのとき、時間経過でお知らせします</p>
             </div>
 
             <!-- Total Time -->
@@ -163,16 +236,32 @@
             <h2 class="text-2xl font-bold mb-4">時間になりました！</h2>
             <p class="mb-6 text-gray-600">お疲れ様です。一息つきませんか？</p>
             <button id="stop-alarm-btn" class="btn-primary px-8 py-3 rounded-full font-bold w-full">
-                アラームを止める
+                アラームを止めて休憩
             </button>
         </div>
     </div>
+
+    <!-- Footer with Animation -->
+    <footer>
+        <div id="horse-track" class="horse-track">
+            <span class="horse">🐎</span>
+            <span class="horse">🐎</span>
+            <span class="horse">🐎</span>
+            <span class="horse">🐎</span>
+        </div>
+        <div class="footer-controls">
+            <button id="footer-anim-toggle" class="text-xs bg-white px-4 py-1.5 rounded-full border border-[#a7f3d0] shadow-sm font-bold hover:bg-gray-50">
+                お馬さんを止める
+            </button>
+        </div>
+    </footer>
 
     <script>
         let startTime = null;
         let timerInterval = null;
         let isRunning = false;
         let records = [];
+        let alarmFired = false;
 
         const timeDisplay = document.getElementById('current-time');
         const toggleBtn = document.getElementById('toggle-btn');
@@ -181,6 +270,9 @@
         const resetAllBtn = document.getElementById('reset-all-btn');
         const alarmModal = document.getElementById('alarm-modal');
         const stopAlarmBtn = document.getElementById('stop-alarm-btn');
+        const alarmToggle = document.getElementById('alarm-toggle');
+        const horseTrack = document.getElementById('horse-track');
+        const footerAnimToggle = document.getElementById('footer-anim-toggle');
         
         const alarmInputs = {
             h: document.getElementById('alarm-h'),
@@ -191,44 +283,37 @@
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let alarmInterval = null;
 
-        // 穏やかなメロディを奏でる関数
         function playCalmMelody() {
             const now = audioCtx.currentTime;
-            
-            // 和音の構成音（E5, G#5, B5）
             const melody = [659.25, 830.61, 987.77];
             
             melody.forEach((freq, index) => {
-                const startTime = now + (index * 0.4); // 0.4秒ずつずらして奏でる
-                
+                const sTime = now + (index * 0.4);
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 const filter = audioCtx.createBiquadFilter();
 
-                osc.type = 'sine'; // 非常に純粋で柔らかい波形
-                osc.frequency.setValueAtTime(freq, startTime);
-
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, sTime);
                 filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(800, startTime);
+                filter.frequency.setValueAtTime(800, sTime);
 
-                // 包絡線：さらにアタックを遅くして「ふわっ」と鳴らす
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(0.2, startTime + 0.1); 
-                gain.gain.exponentialRampToValueAtTime(0.001, startTime + 2.0);
+                gain.gain.setValueAtTime(0, sTime);
+                gain.gain.linearRampToValueAtTime(0.2, sTime + 0.1); 
+                gain.gain.exponentialRampToValueAtTime(0.001, sTime + 2.0);
 
                 osc.connect(filter);
                 filter.connect(gain);
                 gain.connect(audioCtx.destination);
 
-                osc.start(startTime);
-                osc.stop(startTime + 2.0);
+                osc.start(sTime);
+                osc.stop(sTime + 2.0);
             });
         }
 
         function startAlarmSound() {
             if (alarmInterval) return;
             playCalmMelody();
-            // 5秒おきにメロディを流す（かなりゆったりした間隔）
             alarmInterval = setInterval(playCalmMelody, 5000);
         }
 
@@ -253,11 +338,8 @@
         function saveToUrl() {
             const data = records.map(r => `${r.start},${r.end}`).join(';');
             const url = new URL(window.location);
-            if (data) {
-                url.searchParams.set('data', data);
-            } else {
-                url.searchParams.delete('data');
-            }
+            if (data) url.searchParams.set('data', data);
+            else url.searchParams.delete('data');
             window.history.replaceState({}, '', url);
         }
 
@@ -268,27 +350,48 @@
                 const rows = data.split(';');
                 records = rows.map(row => {
                     const parts = row.split(',').map(Number);
-                    if (parts.length === 2) {
-                        return { start: parts[0], end: parts[1] };
-                    }
+                    if (parts.length === 2) return { start: parts[0], end: parts[1] };
                     return null;
                 }).filter(r => r !== null);
                 renderTable();
             }
         }
 
+        // アラーム時間の再評価ロジック
+        function checkAndResetAlarmFlag() {
+            if (!startTime) return;
+            const diffSec = Math.floor((Date.now() - startTime) / 1000);
+            const alarmSec = (parseInt(alarmInputs.h.value) * 3600) + 
+                             (parseInt(alarmInputs.m.value) * 60) + 
+                             parseInt(alarmInputs.s.value);
+            
+            // 現在の経過時間よりも「未来」の時間に設定されたなら、鳴動フラグをリセットする
+            if (alarmSec > diffSec) {
+                alarmFired = false;
+            }
+        }
+
+        // 設定が変更されたらフラグをチェックする
+        [alarmInputs.h, alarmInputs.m, alarmInputs.s, alarmToggle].forEach(el => {
+            el.addEventListener('change', checkAndResetAlarmFlag);
+            el.addEventListener('input', checkAndResetAlarmFlag);
+        });
+
         function updateDisplay() {
             if (!startTime) return;
             const diff = Date.now() - startTime;
             timeDisplay.textContent = formatTime(diff);
 
-            const diffSec = Math.floor(diff / 1000);
-            const alarmSec = (parseInt(alarmInputs.h.value) * 3600) + 
-                             (parseInt(alarmInputs.m.value) * 60) + 
-                             parseInt(alarmInputs.s.value);
-            
-            if (diffSec === alarmSec) {
-                showAlarm();
+            if (alarmToggle.checked && !alarmFired) {
+                const diffSec = Math.floor(diff / 1000);
+                const alarmSec = (parseInt(alarmInputs.h.value) * 3600) + 
+                                 (parseInt(alarmInputs.m.value) * 60) + 
+                                 parseInt(alarmInputs.s.value);
+                
+                if (diffSec >= alarmSec && alarmSec > 0) {
+                    showAlarm();
+                    alarmFired = true;
+                }
             }
         }
 
@@ -300,6 +403,7 @@
                 
                 isRunning = false;
                 startTime = null;
+                alarmFired = false;
                 toggleBtn.textContent = 'スタート！';
                 toggleBtn.className = 'btn-primary px-12 py-4 rounded-full text-xl font-bold w-full sm:w-auto';
                 timeDisplay.textContent = '00:00:00';
@@ -307,14 +411,12 @@
                 renderTable();
                 saveToUrl();
             } else {
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
+                if (audioCtx.state === 'suspended') audioCtx.resume();
                 startTime = Date.now();
                 isRunning = true;
+                alarmFired = false;
                 toggleBtn.textContent = 'ストップ';
                 toggleBtn.className = 'btn-stop px-12 py-4 rounded-full text-xl font-bold w-full sm:w-auto';
-                
                 timerInterval = setInterval(updateDisplay, 200);
             }
         }
@@ -322,11 +424,9 @@
         function renderTable() {
             recordList.innerHTML = '';
             let totalMs = 0;
-
             records.forEach(r => {
                 const diff = r.end - r.start;
                 totalMs += diff;
-
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="px-4">${formatDate(r.start)}</td>
@@ -335,7 +435,6 @@
                 `;
                 recordList.appendChild(tr);
             });
-
             totalDisplay.textContent = formatTime(totalMs);
         }
 
@@ -347,6 +446,7 @@
         function hideAlarm() {
             alarmModal.classList.add('hidden');
             stopAlarmSound();
+            alarmToggle.checked = false;
         }
 
         toggleBtn.addEventListener('click', toggleTimer);
@@ -369,10 +469,17 @@
             }
         });
 
-        window.onload = () => {
-            loadFromUrl();
-        };
+        footerAnimToggle.addEventListener('click', () => {
+            if (horseTrack.style.animationPlayState === 'paused') {
+                horseTrack.style.animationPlayState = 'running';
+                footerAnimToggle.textContent = 'お馬さんを止める';
+            } else {
+                horseTrack.style.animationPlayState = 'paused';
+                footerAnimToggle.textContent = 'お馬さんを走らせる';
+            }
+        });
 
+        window.onload = loadFromUrl;
     </script>
 </body>
 </html>
